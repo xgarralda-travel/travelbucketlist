@@ -231,11 +231,6 @@
       .cal-viewport {
         overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
         padding: 8px 0 16px; margin: -8px 0 -16px;
-        /* Vertical pans belong to the page: the browser scrolls the page
-           natively and horizontal drags are left for the pager's own
-           swipe gate (see the pointer handlers in the calendar script),
-           so scrolling up or down can never flip the month */
-        touch-action: pan-y;
       }
       .cal-viewport::-webkit-scrollbar { display: none; }
       #months { display: flex; align-items: flex-start; }
@@ -747,55 +742,13 @@
         else if (e.key === "ArrowRight") { goToMonth(calIndex + 1); e.preventDefault(); }
       });
       var calScrollTimer = null;
-      var calDragging = false;
       calViewport.addEventListener("scroll", function () {
         if (calScrollTimer) clearTimeout(calScrollTimer);
         calScrollTimer = setTimeout(function () {
-          if (calDragging) return;
           var i = Math.round(calViewport.scrollLeft / calViewport.clientWidth);
           if (i !== calIndex && i >= 0 && i < MONTHS.length) { calIndex = i; updateCalNav(); }
         }, 80);
       }, { passive: true });
-      /* Touch swipe gate: a month changes only on a clearly horizontal
-         swipe. touch-action: pan-y (in the CSS) leaves vertical pans to
-         the browser's page scroll; horizontal drags reach these handlers
-         instead and are followed by hand. A drag counts as a swipe only
-         once its direction is locked — horizontal travel at least 1.5x
-         the vertical — and it commits to the next or previous month
-         only if the finger ends at least 48px sideways from where it
-         started; anything less snaps back to the current month. */
-      var calDrag = null;
-      calViewport.addEventListener("pointerdown", function (e) {
-        if (e.pointerType === "mouse") return;
-        calDrag = { x: e.clientX, y: e.clientY, dx: 0, base: calViewport.scrollLeft, mode: null };
-      });
-      calViewport.addEventListener("pointermove", function (e) {
-        if (!calDrag) return;
-        var dx = e.clientX - calDrag.x;
-        var dy = e.clientY - calDrag.y;
-        calDrag.dx = dx;
-        if (!calDrag.mode) {
-          if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-          calDrag.mode = Math.abs(dx) > Math.abs(dy) * 1.5 ? "h" : "v";
-          if (calDrag.mode === "h") {
-            calDragging = true;
-            calViewport.style.scrollSnapType = "none";
-          }
-        }
-        if (calDrag.mode === "h") calViewport.scrollLeft = calDrag.base - dx;
-      });
-      function calDragEnd(commit) {
-        if (!calDrag) return;
-        var drag = calDrag; calDrag = null;
-        if (drag.mode !== "h") return;
-        calDragging = false;
-        calViewport.style.scrollSnapType = "";
-        if (commit && drag.dx <= -48) goToMonth(calIndex + 1);
-        else if (commit && drag.dx >= 48) goToMonth(calIndex - 1);
-        else goToMonth(calIndex);
-      }
-      calViewport.addEventListener("pointerup", function () { calDragEnd(true); });
-      calViewport.addEventListener("pointercancel", function () { calDragEnd(false); });
       window.addEventListener("resize", updateCalNav);
       window.addEventListener("load", updateCalNav);
       updateCalNav();
